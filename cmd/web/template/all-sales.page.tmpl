@@ -1,0 +1,218 @@
+{{template "base" .}}
+
+{{define "title"}}
+    All Sales Page 
+{{end}}
+
+{{define "content"}}
+    <div class="row">
+        <div class="cols">
+            <h1> All Sales Page Resume For Admin </h1>
+
+            <!-- crete table to populated all sales data -->
+            <table class="table table-striped table-hover" id="all-sales">
+                <thead>
+                    <tr>
+                        <th>Order Id</th>
+                        <th>First Name</th>
+                        <th>Last Name</th>
+                        <th>Product Name</th>
+                        <th>Amount Payment</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                </tbody>
+            </table>
+            <nav aria-label="Page navigation example">
+                <ul class="pagination" id="pgn">
+
+                </ul>
+            </nav>
+        </div>
+    </div>
+{{end}}
+
+{{define "js"}}
+<script>
+    // cretae globvale variabvle for current page and all pahge
+    let currentPage = 1;
+    let allPages = 3;
+
+    // create listener to be called when dom element first time loaded
+    document.addEventListener("DOMContentLoaded", function(){
+        updateTable(currentPage)
+    })
+
+    // create function for show nav button for paginating data
+    function showPaginatingButton(currPage, allPage) {
+        console.log("show paginating element");
+        // get elemetn of nav bar
+        const paginate = document.getElementById("pgn");
+
+        // crate html element
+        let htmlElement = `<li class="page-item"><a class="page-link paginator" data-page="${currPage-1}" href="#">Previous</a></li>`
+
+        // loop through all data page
+
+        for(let i = 0; i < allPage + 1; i++) {
+            if((i+1) === currPage) {
+                htmlElement += `<li class="page-item active"><a class="page-link paginator" data-page="${i+1}" href="#">${i + 1}</a></li>`
+            } else {
+                htmlElement += `<li class="page-item"><a class="page-link paginator" data-page="${i+1}" href="#">${i + 1}</a></li>`
+            }
+        }
+
+        htmlElement += `<li class="page-item"><a class="page-link paginator" data-page="${currPage+1}" href="#">Next</a></li>`
+        
+        // add component
+        paginate.innerHTML = htmlElement;
+
+        // add listener to paginator button
+        // get all paginator element
+        const paginatorElements = document.getElementsByClassName("paginator");
+
+        // add listener to each element
+        for(let j = 0; j < paginatorElements.length; j++) {
+            paginatorElements[j].addEventListener("click", function(event){
+                // get value from object
+                let valuePage = event.target.getAttribute("data-page");
+
+                // convert to integer
+                valuePage = parseInt(valuePage, 10);
+
+                console.log("getting value : ", valuePage);
+
+                // check for value
+                if((valuePage > 0) && (valuePage <= allPage + 1)) {
+                    // input valid
+                    updateTable(valuePage);
+                }
+            });
+        }
+    }
+
+    // create function to be called to update table
+    function updateTable(currPage) {
+        // get table object
+        var getTable = document.getElementById("all-sales");
+
+        // get inner object
+        var tData = getTable.getElementsByTagName("tbody")[0];
+
+        // cliean table data
+        tData.innerHTML = "";
+
+        // cretae header
+        var myHeader = new Headers();
+
+        // get token from local storage
+        const getToken = localStorage.getItem("user_token");
+
+        console.log("get token : " + getToken);
+
+        // add header value
+        myHeader.append("Accept", "application/json");
+        myHeader.append("Content-Type", "application/json");
+        myHeader.append("Authorization", "Bearer " + getToken);
+
+        // create payload for request
+        const requestBody = {
+            page_size: parseInt(allPages, 10),
+            current_page: parseInt(currPage, 10),
+        }
+
+        // create request
+        var requestPayload = {
+            method: "POST",
+            headers: myHeader,
+            body: JSON.stringify(requestBody),
+        };
+
+        // fetching data from api
+        console.log("creating request");
+        fetch("http:\/\/localhost:4001\/api\/admin\/showsales", requestPayload)
+            .then(response => response.json())
+            .then(function(result){
+                console.log(result);
+
+                // check if data exist or not
+                if (result.all_order) {
+                    // iterate through all data
+                    result.all_order.forEach(function(item){
+                        // get object from object
+                        let getTransaction = item.transaction_model;
+                        let getWidget = item.widget_model;
+                        let getCustomer = item.customer_model;
+
+                        // create row
+                        let newRow = tData.insertRow();
+
+                        // create new cell or column
+                        let newCell = newRow.insertCell();
+
+                        // assign first column with order id with link
+                        newCell.innerHTML = `<a href="/admin/sales/${item.id}">Order Link ${item.id} </a>`;
+
+                        // cretae second column
+                        newCell = newRow.insertCell();
+                        let textNode = document.createTextNode(getCustomer.first_name);
+                        newCell.appendChild(textNode);
+
+                        // cretae third column
+                        newCell = newRow.insertCell();
+                        textNode = document.createTextNode(getCustomer.last_name);
+                        newCell.appendChild(textNode);
+
+                        // cretae fourth column
+                        newCell = newRow.insertCell();
+                        textNode = document.createTextNode(getWidget.name);
+                        newCell.appendChild(textNode);
+
+                        // cretae fifth column
+                        let formatedAmount = formatCurrency(item.amount);
+                        newCell = newRow.insertCell();
+                        textNode = document.createTextNode(formatedAmount);
+                        newCell.appendChild(textNode);
+
+                        // create sixth column
+                        newCell = newRow.insertCell();
+                        if(item.status_id !== 1) {
+                            newCell.innerHTML = `<span class="badge bg-danger"> Refunded </span>`
+                        }else{
+                            newCell.innerHTML = `<span class="badge bg-success"> Charged </span>`
+                        }
+                    })
+                    // get last page
+                    const lastPage = result.last_page;
+
+                    showPaginatingButton(currPage, lastPage);
+                } else {
+                    console.log("No data")
+                    // create row
+                    let newRow = tData.insertRow();
+
+                    // create new cell or column
+                    let newCell = newRow.insertCell();
+
+                    // add attribute to cell
+                    newCell.setAttribute("colspan", "5");
+                    newCell.innerHTML = "No data available";
+                }
+            });
+    }
+
+    // create function to formatting currency
+    function formatCurrency(curr) {
+        // divide currency by 100
+        let getCurr = parseFloat(curr/100);
+
+        // formatting to string
+        let result = getCurr.toLocaleString("en-US", {style:"currency", currency:"USD"});
+
+        // return value
+        return result;
+    }
+</script>
+{{end}}

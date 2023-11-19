@@ -1,0 +1,427 @@
+{{template "base" .}}
+
+{{define "title"}}
+    Virtual Terminal
+{{end}}
+
+{{define "in-head"}}
+    <script>
+        checkAuth()
+    </script>
+{{end}}
+
+{{define "content"}}
+    <div class="row">
+        <div class="col-md-6 offset-md-3" id="forms">
+            <h2>Virtual Terminal</h2>
+
+            <hr>
+            <div class="alert alert-danger text-center d-none" id="card-messages"></div>
+
+            <form action="" method="post" class="form d-block needs-validation charge-form"
+                    autocomplete="off" novalidate="" id="form_payment">
+
+                <div class="mb-3">
+                    <label for="charge_amount" class="form-label">Amount</label>
+                    <input type="text" class="form-control" id="charge_amount" name="charge_amount"
+                        required="" autocomplete="amount-new">
+                </div>
+
+                <div class="mb-3">
+                    <label for="cardholder-name" class="form-label">Cardholder Name</label>
+                    <input type="text" class="form-control" id="cardholder-name" name="cardholder_name"
+                        required="" autocomplete="cardholder-name-new">
+                </div>
+
+                <div class="mb-3">
+                    <label for="cardholder-email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="cardholder-email" name="cardholder_email"
+                        required="" autocomplete="cardholder-email-new">
+                </div>
+
+                <!-- card number will be built by stripe -->
+                <div class="mb-3">
+                    <label for="card-element" class="form-label">Credit Card</label>
+                    <div id="card-element" class="form-control"></div>
+                    <div class="alert-danger text-center" id="card-errors" role="alert"></div>
+                    <div class="alert-success text-center" id="card-success" role="alert"></div>
+                </div>
+
+                <hr>
+
+                <a id="pay-button" href="javascript:void(0)" class="btn btn-primary" onclick="val()">Charge Card</a>
+
+                <div id="processing-payment" class="text-center d-none">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <input type="hidden" name="payment_intent" id="payment_intent">
+                <input type="hidden" name="amount" id="amount">
+                <input type="hidden" name="payment_method" id="payment_method">
+                <input type="hidden" name="payment_amount" id="payment_amount">
+                <input type="hidden" name="payment_currency" id="payment_currency">
+            </form>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 offset-md-3 d-none" id="receipt">
+            <table class = "table table-striped table-hover" id="all-res">
+                <thead>
+                    <tr>
+                        <th>Flag Name</th>
+                        <th>Value Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Card Holder Name</td>
+                        <td> <span id="cardholder-name-value"></span> </td>
+                    </tr>
+                    <tr>
+                        <td>Card Holder Email</td>
+                        <td> <span id="cardholder-email-value"></span> </td>
+                    </tr>
+                    <tr>
+                        <td>Payment Intent</td>
+                        <td> <span id="payment-intent-value"></span> </td>
+                    </tr>
+                    <tr>
+                        <td>Payment Method</td>
+                        <td> <span id="payment-method-value"></span> </td>
+                    </tr>
+                    <tr>
+                        <td>Payment Amount</td>
+                        <td> <span id="payment-amount-value"></span> </td>
+                    </tr>
+                    <tr>
+                        <td>Payment Currency</td>
+                        <td> <span id="payment-currency-value"></span> </td>
+                    </tr>
+                    <tr>
+                        <td>Last Four Credit Card Number</td>
+                        <td> <span id="last-four-value"></span> </td>
+                    </tr>
+                    <tr>
+                        <td>Bank Code</td>
+                        <td> <span id="bank-code-value"></span> </td>
+                    </tr>
+                    <tr>
+                        <td>Expired Date</td>
+                        <td> <span id="exp-month-value"></span> / <span id="exp-year-value"></span> </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+{{end}}
+
+{{define "js"}}
+    <script>
+        // get element of charge amount
+        document.getElementById("charge_amount").addEventListener("change", event => {
+        if(event.target.value !== "") {
+            // if there is a user input
+            document.getElementById("amount").value = parseInt((event.target.value * 100), 10);
+        } else {
+            document.getElementById("amount").value = 0;
+        }
+        })
+    </script>
+
+    <script src="https://js.stripe.com/v3/"></script>
+
+    <script>
+        // create card variable
+        let card;
+
+        // create stripe variable
+        let stripe;
+
+        const cardMessages = document.getElementById("card-messages");
+
+        const payButton = document.getElementById("pay-button");
+        
+        const processing = document.getElementById("processing-payment");
+
+        // create function to hide payment button
+        function hidePaymentBtn() {
+            // set pay button classs to d non
+            payButton.classList.add("d-none");
+
+            // set d none class empty in processing
+            processing.classList.remove("d-none");
+        }
+
+        // create function to show error message
+        function showErrorMessage(msg) {
+            // show card messages
+            cardMessages.classList.remove("d-none");
+            // add alert messages
+            cardMessages.classList.add("alert-danger");
+            // remove success alert
+            cardMessages.classList.remove("alert-success");
+            // add message
+            cardMessages.innerText = msg;
+        }
+
+        // create function to show success message
+        function showSuccessMessage(msg) {
+            // show card messages
+            cardMessages.classList.remove("d-none");
+            // add alert messages
+            cardMessages.classList.remove("alert-danger");
+            // remove success alert
+            cardMessages.classList.add("alert-success");
+            // add message
+            cardMessages.innerText = msg;
+        }
+
+        // create function to show pay button
+        function showPayButton() {
+            // show button
+            payButton.classList.remove("d-none");
+            // stop showing processing
+            processing.classList.add("d-none");
+        }
+
+        // create function to save transaction
+        function saveTransaction(result) {
+            // print result to database first
+            console.log(result);
+
+            // create payload as request
+            let payload = {
+                first_name: "",
+                last_name: "",
+                cardholder_name: document.getElementById("cardholder-name").value,
+                email: document.getElementById("cardholder-email").value,
+                payment_intent: result.paymentIntent.id,
+                payment_method: result.paymentIntent.payment_method,
+                payment_amount: result.paymentIntent.amount,
+                payment_currency: result.paymentIntent.currency,
+            }
+
+            // cretae header
+            let myHeader = new Headers();
+
+            // get token from local storage
+            let getToken = localStorage.getItem("user_token")
+
+            // add header information
+            myHeader.append("Content-Type", "application/json");
+            myHeader.append("Accept", "application/json");
+            myHeader.append("Authorization", "Bearer " + getToken);
+
+            // create requst body
+            let options = {
+                method: 'POST',
+                headers: myHeader,
+                body: JSON.stringify(payload),
+            }
+
+            // do request
+            fetch("http://localhost:4001/api/admin/virtual-terminal-payment-succeded", options)
+            .then(response => response.json())
+            .then(function(result){
+                // check result
+                console.log(result);
+
+                // show processing
+                processing.classList.add("d-none");
+
+                // show success message
+                showSuccessMessage("Success Completing The Payments");
+
+                showPayButton();
+
+                // set form element to d-none
+                document.getElementById("forms").classList.add("d-none");
+
+                console.log("show receipt");
+
+                // set value on show receipt from response
+                document.getElementById("cardholder-name-value").innerHTML = document.getElementById("cardholder-name").value;
+                document.getElementById("cardholder-email-value").innerHTML = document.getElementById("cardholder-email").value;
+                document.getElementById("payment-intent-value").innerHTML = result.payment_intent;
+                document.getElementById("payment-method-value").innerHTML = result.payment_method;
+                document.getElementById("payment-amount-value").innnerHTML = result.amount;
+                document.getElementById("payment-currency-value").innerHTML = result.currency;
+                document.getElementById("last-four-value").innerHTML = result.last_four;
+                document.getElementById("bank-code-value").innerHTML = result.bank_return_code;
+                document.getElementById("exp-month-value").innerHTML = result.expired_month;
+                document.getElementById("exp-year-value").innerHTML = result.expired_year;
+
+                // remove d-none class from show receipt
+                document.getElementById("receipt").classList.remove("d-none");
+            })
+        }
+
+        // function val will be called to confirm payment
+        function val() {
+            // get form object
+            var myForm = document.getElementById("form_payment")
+
+            // check if form validate success or not
+            if(myForm.checkValidity() === false) {
+                // if there is an errro of entering input
+                /*
+                event prevent default digunakna untuk mencancel action yang akan dilakukan oleh form
+                dalam hal ini digunakan utnuk mencancle action dari form karena terdapat error validitas
+                link ->
+                https://www.w3schools.com/jsref/event_preventdefault.asp
+                */
+                this.event.preventDefault();
+                /**
+                stop propagation digunakan untuk menghentikan pemrosesan agar tidak berlanjut
+                dalam hal ini digunakna untuk mneghentiukan proses request submit dari form
+                sehingga, tidak buffering menunggu ke state selanjutnya
+                link ->
+                https://developer.mozilla.org/en-US/docs/Web/API/Event/stopPropagation
+                */
+                this.event.stopPropagation();
+                myForm.classList.add("was-validated");
+                return;
+            }
+
+            // add info that form was validated
+            myForm.classList.add("was-validated");
+
+            // hide payment button
+            hidePaymentBtn();
+
+            // get value from amount
+            let amountObj = document.getElementById("amount");
+
+            // convert amouint which is float into string by casting it
+            let amountValue = amountObj.value;
+
+            // set currency
+            let currencySet = "usd"
+
+            // create payload object to past as post request
+            let payload = {
+                amount: amountValue,
+                currency: currencySet,
+            };
+
+            // create option to pass as body for post request
+            let options = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json;charset=utf-8',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            }
+            /**
+            bacaan lebih lanjut mengenai fetch request pada java script
+            https://www.geeksforgeeks.org/javascript-fetch-method/
+            */
+
+            // create request
+            fetch("http://localhost:4001/api/payment-intent", options)
+                .then(response => response.text())
+                .then(response => {
+                    let data;
+                    data = JSON.parse(response);
+                    try {
+                        data = JSON.parse(response);
+                        stripe.confirmCardPayment(data.client_secret, {
+                            payment_method: {
+                                card: card,
+                                billing_details:{
+                                    name: document.getElementById("cardholder-name").value,
+                                }
+                            }
+                        }).then(function(result){
+                            if(result.error) {
+                                // if there is an error
+                                // show errro function
+                                showErrorMessage(result.error.message);
+
+                                // show pay button for user to reinput
+                                showPayButton();
+                            } else if (result.paymentIntent) {
+                                if(result.paymentIntent.status === "succeeded") {
+                                    // if authentication car success
+                                    {{/* document.getElementById("payment_method").value = result.paymentIntent.payment_method;
+                                    document.getElementById("payment_intent").value = result.paymentIntent.id;
+                                    document.getElementById("payment_amount").value = result.paymentIntent.amount;
+                                    document.getElementById("payment_currency").value = result.paymentIntent.currency; */}}
+                                    /**
+                                    dokumentasi soal result.paymentIntent dapat dilihat pada link berikut
+                                    -> https://stripe.com/docs/api/payment_intents/object
+                                    */
+                                    // call save transaction function
+                                    saveTransaction(result);
+                                }
+                            }
+                        })
+                    } catch(error) {
+                        console.log(error)
+                        showErrorMessage("Invalid response from payment gateway!");
+                        showPayButton();
+                    }
+                })
+        }
+
+        /**
+        fungsi dibawah akan digunakna untuk mengenerate input creadit card
+        */
+
+        // cretae function to generate 
+        function initial() {
+            stripe = Stripe('pk_test_51NqzecHIAOtdaeBWDPt9lJOVh42ik6CYub4enGhe5PSROf76bgshIxPDQF3qNXq4W5K9vdHwVg9oW1v4XRpL6wuv00bB4NV5p6');
+
+            // create element from stripe
+            var element = stripe.elements();
+
+            // create style from stripe
+            var style = {
+                base: {
+                    fontSize: '16px',
+                    lineHeight: '24px'
+                }
+            }
+
+            // create card element
+            card = element.create(
+                'card',
+                {
+                    style: style,
+                    hidePostalCode: true
+                }
+            )
+
+            // assign card to html block
+            card.mount("#card-element")
+
+            // check for an errro by adding card listener
+            /**
+            add listener ini akan dipanggil jika terdapat perubahan dari input card input
+            seperti yang dilihat pada parameter pertama yaitu change
+            */
+            card.addEventListener('change', function(event){
+                // get error 
+                var error = event.error;
+
+                // get html block
+                var display = document.getElementById("card-errors");
+                // check if error exist or not
+                if (error) {    
+                    // if there is an error
+                    display.classList.remove('d-none');
+                    display.textContent = error.message;
+                }else{
+                    // if there is no error
+                    display.classList.add('d-none');
+                    display.textContent = '';
+                }
+            })
+        };
+
+        initial();
+
+    </script>
+{{end}}

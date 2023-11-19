@@ -1,0 +1,238 @@
+{{define "base"}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
+
+    <title>
+    {{block "title" .}}
+
+    {{end}}
+    </title>
+
+    <!-- create authentication function in head, so that element will not rendered properly until user success auth -->
+    <script>
+      // create function to check user auithentication
+    function checkAuth() {
+      // get token from local storage
+      let getToken = localStorage.getItem("user_token");
+
+      // check if token exist or not
+      if (getToken === null) {
+        // if user not yet login
+        console.log("user not yet loggin");
+        location.href = "/login"
+      } else {
+        // if user already login
+        // check their credentials by user request to backend, to check
+        // if their tokens valid or not
+
+        // create headers
+        var myHeader = new Headers();
+
+        // append headers with information about content type and authorization
+        myHeader.append("Content-Type", "application/json");
+        myHeader.append("Authorization", "Bearer " + getToken);
+
+        // create request payload
+        let reqPayload = {
+          method: "POST",
+          headers: myHeader,
+        }
+
+        // do request
+        fetch("http://localhost:4001/api/check-auth", reqPayload)
+          .then(response => response.json())
+          .then(function(response){
+              // check response
+              if(response.ok === true) {
+                // if there is an error
+                console.log("error user tokens are not valid, not authenticated!")
+                localStorage.setItem("check", "1");
+                location.href = "/login"
+              } else {
+                // if user success authorization
+                console.log("user tokes is valid, authenticated");
+                console.log(response);
+              }
+          });
+      }
+    }
+    </script>
+
+    {{block "in-head" .}}
+
+    {{end}}
+
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">&nbsp;</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link active" aria-current="page" href="/">Home</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              Products
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+              <li><a class="dropdown-item" href="/buy-one?id=1">Buy one widget</a></li>
+              <li><a class="dropdown-item" href="/bronze">Subscription</a></li>
+            </ul>
+          {{if eq .IsAuthenticated 1}}
+            <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              Admin Menu
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+              <a class="nav-link" href="/admin/virtual-terminal">Virtual Terminal</a>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/admin/all-sales">All Sales</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/admin/all-sub">All Subscription</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/admin/all-users">All Users</a></li>
+            </ul>
+          </li>
+          {{end}}
+        </ul>
+        {{if eq .IsAuthenticated 1}}
+          <!-- if user is already login -->
+          <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+            <li id="login-list" class="nav-item">
+              <a class="nav-link active" onclick="logout()" aria-current="page" href="#!">Logout</a>
+            </li>
+          </ul>
+        {{else}}
+          <!-- if user is not yet login -->
+          <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+            <li id="login-list" class="nav-item">
+              <a class="nav-link active" aria-current="page" href="/login">Login</a>
+            </li>
+          </ul>
+        {{end}}
+      </div>
+    </div>
+  </nav>
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                {{block "content" .}} {{end}}
+            </div>
+        </div>
+    </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-gtEjrD/SeCtmISkJkNUaaKMoLD0//ElJ19smozuHV6z3Iehds+3Ulb9Bn9Plx0x4" crossorigin="anonymous"></script>
+  <script>
+    // get elment from html
+    {{/* let vtList = document.getElementById("vt-list");
+    let loginList = document.getElementById("login-list"); */}}
+
+    // start request to websocket by checking if user already login or not
+    {{if eq .IsAuthenticated 1}}
+      // set socket variable as glolbal variable so that can be accessed on other js file
+      var webSocket;
+      // create websocket object
+      document.addEventListener("DOMContentLoaded", function(){
+        webSocket = new WebSocket("ws://localhost:4000/websocket");
+
+        // add listener to each function from websocket
+        webSocket.onopen = () => {
+          console.log("Success connecting to websocket endpoint...");
+        }
+
+        webSocket.onerror = error => {
+          console.log("error happen : ", error);
+        }
+
+        // get payload from response websocket
+        webSocket.onmessage = msg => {
+          // get data of message
+          let getData = JSON.parse(msg.data);
+
+          // check action of data
+          switch(getData.action) {
+            case "logout":
+              // if case is logout
+              // call logout function by checking if id same as user id
+              console.log({{.UserID}});
+              if(getData.user_id === {{.UserID}}) {
+                logout();
+              }
+              break;
+            default:
+              console.log("Unidentified action response from websocket...");
+          }
+        }
+      })
+      
+    {{end}}
+
+    // create function
+    function logout() {
+      // function logout
+      // remove all item
+      localStorage.removeItem("user_token");
+      localStorage.removeItem("expiry");
+
+      // redirect user
+      location.href = "/logout";
+    }
+
+    // add listener to document
+    /**
+    this listener when document was rendered fot the first time
+    */
+    {{/* document.addEventListener("DOMContentLoaded", function(){
+      console.log("html redereder");
+
+      // get token authentication from local storage
+      let getToken = localStorage.getItem("user_token");
+      console.log(getToken);
+
+      // check if user already authenticated or not
+      if (getToken !== null) {
+        // user already authenticated
+        // show virtual terminal link
+        vtList.classList.remove("d-none");
+
+        console.log("user already loggin");
+
+        // set login list inner html
+        loginList.innerHTML = '<a class="nav-link active" onclick="logout()" aria-current="page" href="#!">Logout</a>';
+
+        // check token validity
+        if (localStorage.getItem("check") === "1") {
+          console.log("there is check");
+          // set login list inner html
+          loginList.innerHTML = '<a class="nav-link active" aria-current="page" href="/login">Login</a>';
+        }
+      } else {
+        // user has not authenicated yet
+        // unshow virtual terminal link
+        vtList.classList.add("d-none");
+
+        console.log("user not yet loggin");
+
+        // set login list inner html
+        loginList.innerHTML = '<a class="nav-link active" aria-current="page" href="/login">Login</a>';
+      }
+    }) */}}
+  </script>
+  {{block "js" .}}
+
+  {{end}}
+    
+  </body>
+  
+</html>
+
+{{end}}

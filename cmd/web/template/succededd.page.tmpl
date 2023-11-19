@@ -1,0 +1,68 @@
+{{template "base" .}}
+
+{{define "title"}}
+    Succeded Payment 
+{{end}}
+
+{{define "content"}}
+    <h2 class="mt-7">Resume Succeded Payment </h2>
+    <hr/>
+    <!-- get transaction object -->
+    {{$trx := index .DataMap "trx"}}
+    <table class = "table table-striped table-hover" id="all-res">
+        <thead>
+            <tr>
+                <th>Flag Name</th>
+                <th>Value Name</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>First Name</td>
+                <td> {{$trx.FirstName}} </td>
+            </tr>
+            <tr>
+                <td>Last Name</td>
+                <td> {{$trx.LastName}} </td>
+            </tr>
+            <tr>
+                <td>Card Holder Name</td>
+                <td> {{$trx.CardHolderName}} </td>
+            </tr>
+            <tr>
+                <td>Card Holder Email</td>
+                <td> {{$trx.Email}} </td>
+            </tr>
+            <tr>
+                <td>Payment Intent</td>
+                <td> {{$trx.PaymentIntentID}} </td>
+            </tr>
+            <tr>
+                <td>Payment Method</td>
+                <td> {{$trx.PaymentMethodID}} </td>
+            </tr>
+            <tr>
+                <td>Payment Amount</td>
+                <td> {{$trx.PaymentAmount}} </td>
+            </tr>
+            <tr>
+                <td>Payment Currency</td>
+                <td> {{$trx.PaymentCurrency}} </td>
+            </tr>
+            <tr>
+                <td>Last Four Credit Card Number</td>
+                <td> {{$trx.LastFour}} </td>
+            </tr>
+            <tr>
+                <td>Bank Code</td>
+                <td> {{$trx.BankReturnCode}} </td>
+            </tr>
+            <tr>
+                <td>Expired Date</td>
+                <td> {{$trx.ExpiredMonth}} / {{$trx.ExpiredYear}} </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <a href="/virtual-terminal" class="btn"> Accept </a>
+{{end}}

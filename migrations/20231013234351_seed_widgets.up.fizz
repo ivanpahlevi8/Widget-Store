@@ -1,0 +1,3 @@
+sql(
+    "insert into widgets (name, description, inventory_level, price, created_at, updated_at, image, is_reccuring, plan_id)
+     values ('Widget', 'A very nice widget.', 10, 1000, now(), now());")

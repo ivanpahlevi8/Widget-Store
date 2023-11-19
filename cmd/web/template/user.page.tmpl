@@ -1,0 +1,236 @@
+{{template "base" .}}
+
+{{define "title"}}
+    Admin User
+{{end}}
+
+{{define "content"}}
+    <h1 class="mt-5">Admin User Data</h1>
+    <hr>
+
+    <form action="" method="post" class="form d-block needs-validation charge-form"
+                    autocomplete="off" novalidate="" id="form_edit">
+
+        <div class="mb-3">
+            <label for="first-name" class="form-label">First Name</label>
+            <input type="text" class="form-control" id="first_name" name="first_name"
+                required="" autocomplete="first-name-new">
+        </div>
+
+        <div class="mb-3">
+            <label for="last-name" class="form-label">Last Name</label>
+            <input type="text" class="form-control" id="last_name" name="last_name"
+                required="" autocomplete="last-name-new">
+        </div>
+
+        <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="email" name="email"
+                required="" autocomplete="email-new">
+        </div>
+
+        <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" class="form-control" id="password" name="password"
+                autocomplete="password-new">
+        </div>
+
+        <div class="mb-3">
+            <label for="password-confirm" class="form-label">Password Confirm</label>
+            <input type="password" class="form-control" id="password_confirm" name="password-confirm"
+                autocomplete="password-confirm-new">
+        </div>
+
+        <div class="float-start">
+            <a id="save-button" href="javascript:void(0)" class="btn btn-primary" onclick="val()">Save User</a>
+            <a id="cancle-button" href="/admin/all-users" class="btn btn-warning">Cancle Change</a>
+        </div>
+
+        <div class="float-end">
+            <a id="delete-button" href="javascript:void(0)" class="btn btn-danger d-none">Delete User</a>
+        </div>
+
+    </form>
+{{end}}
+
+{{define "js"}}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    // get id from pathname
+    const getId = window.location.pathname.split("/").pop();
+
+    // get token from local storage
+    const getToken = localStorage.getItem("user_token");
+
+    // get reference for delete button
+    const deleteBtn = document.getElementById("delete-button");
+
+    // create function to be called when save button clicked
+    function val(){
+        console.log("user click login button");
+
+        let myForm = document.getElementById("form_edit");
+
+        // check if form validate success or not
+        if(myForm.checkValidity() === false) {
+            this.event.preventDefault();
+            this.event.stopPropagation();
+            myForm.classList.add("was-validated");
+            return;
+        }
+
+        // add info that form was validated
+        myForm.classList.add("was-validated");
+
+        // check if password matches with confirm password
+        const getPasswordInput = document.getElementById("password");
+        const getPasswordConfirmInput = document.getElementById("password_confirm");
+
+        if (getPasswordInput.value !== getPasswordConfirmInput.value) {
+            Swal.fire("Password are not matches with password confirm, Please check again!!!");
+            return 
+        }
+
+        // if success, creaet payload based on forms value
+        const payloadRequest = {
+            id: parseInt(getId, 10),
+            first_name: document.getElementById("first_name").value,
+            last_name: document.getElementById("last_name").value,
+            email: document.getElementById("email").value,
+            password: document.getElementById("password").value,
+        }
+
+        // cretae header
+        var myHeader = new Headers();
+
+        // add header value
+        myHeader.append("Accept", "application/json");
+        myHeader.append("Content-Type", "application/json");
+        myHeader.append("Authorization", "Bearer " + getToken);
+
+        // create request
+        var requestOption = {
+            method: "POST",
+            headers: myHeader,
+            body: JSON.stringify(payloadRequest),
+        };
+
+        // do request
+        fetch("http:\/\/localhost:4001\/api\/admin\/user\/edit\/"+getId, requestOption)
+            .then(response => response.json())
+            .then(function(result){
+                console.log(result);
+                // check if resul ok or not
+                if(result.ok) {
+                    // if there is an error
+                    Swal.fire("error happen " + result.content);
+                } else {
+                    // if there is no error
+                    Swal.fire("Success editing user")
+                        .then(() => {
+                            location.href = "/";
+                        });
+                }
+            });
+    }
+
+    // create function to be called when html element first time rendered
+    document.addEventListener("DOMContentLoaded", function(){
+        if(getId !== "0") {
+            // chech if it is current is that loggin or not
+            if(getId !== "{{.UserID}}") {
+                // show delete button
+                deleteBtn.classList.remove("d-none");
+            }
+            
+            // cretae header
+            var myHeader = new Headers();
+
+            console.log("get token : " + getToken);
+
+            // add header value
+            myHeader.append("Accept", "application/json");
+            myHeader.append("Content-Type", "application/json");
+            myHeader.append("Authorization", "Bearer " + getToken);
+
+            // create request
+            var requestPayload = {
+                method: "POST",
+                headers: myHeader,
+            };
+
+            // api /user/{id}
+            fetch("http:\/\/localhost:4001\/api\/admin\/user\/"+getId, requestPayload)
+                .then(response => response.json())
+                .then(function(result){
+                    console.log(result);
+                    // populated forms data with data from response api
+                    document.getElementById("first_name").value = result.first_name;
+                    document.getElementById("last_name").value = result.last_name;
+                    document.getElementById("email").value = result.email;
+                    document.getElementById("password").value = "";
+                    document.getElementById("password_confirm").value = "";
+                });
+        }
+    });
+
+    //create function for listener to delete button
+    deleteBtn.addEventListener("click", function(){
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "{{index .StringMap "dialog-info1"}}",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Delete User Permanently'
+            }).then((result) => {
+                console.log("to do deleted user");
+                // check if user confirm delete or not
+                if(result.isConfirmed) {
+                    console.log("user confirmed to delete");
+                    // crete request
+                    // cretae header
+                    var myHeader = new Headers();
+
+                    // add header value
+                    myHeader.append("Accept", "application/json");
+                    myHeader.append("Content-Type", "application/json");
+                    myHeader.append("Authorization", "Bearer " + getToken);
+
+                    // create request
+                    var requestPayload = {
+                        method: "POST",
+                        headers: myHeader,
+                    };
+
+                    // do request
+                    fetch("http:\/\/localhost:4001\/api\/admin\/delete\/"+getId, requestPayload)
+                        .then(response => response.json())
+                        .then(function(result){
+                            // check result
+                            if(result.ok) {
+                                // if there is an error
+                                Swal.fire("Error when deleting user : " + result.content);
+                            } else {
+                                // if successs
+                                Swal.fire("Success deleting user")
+                                    .then(()=>{
+                                        // create request to websocket for deleting user
+                                        let reqPayload = {
+                                            action: "deleteUser",
+                                            user_id: parseInt(getId, 10),
+                                        };
+
+                                        // send request
+                                        webSocket.send(JSON.stringify(reqPayload));
+
+                                        location.href="/";
+                                    })
+                            }
+                        })
+                }
+            })
+    })
+</script>
+{{end}}

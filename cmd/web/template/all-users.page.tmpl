@@ -1,0 +1,79 @@
+{{template "base" .}}
+
+{{define "title"}}
+    All Users
+{{end}}
+
+{{define "content"}}
+<h2 class="mt-5">All Admin Users</h2>
+<hr>
+<div class="float-end">
+    <a class="btn btn-outline-secondary" href="/admin/user/0">Add User</a>
+</div>
+<div class="clearfix"></div>
+
+<table id="user-table" class="table table-striped">
+<thead>
+    <tr>
+        <th>User</th>
+        <th>Email</th>
+    </tr>
+</thead>
+<tbody>
+
+</tbody>
+</table>
+
+{{end}}
+
+{{define "js"}}
+<script>
+    // create listener to be called when dom element first time loaded
+    document.addEventListener("DOMContentLoaded", function(){
+        let tbody = document.getElementById("user-table").getElementsByTagName("tbody")[0];
+
+        // cretae header
+        var myHeader = new Headers();
+
+        // get token from local storage
+        const getToken = localStorage.getItem("user_token");
+
+        console.log("get token : " + getToken);
+
+        // add header value
+        myHeader.append("Accept", "application/json");
+        myHeader.append("Content-Type", "application/json");
+        myHeader.append("Authorization", "Bearer " + getToken);
+
+        // create request
+        var requestPayload = {
+            method: "POST",
+            headers: myHeader,
+        };
+
+        fetch("http:\/\/localhost:4001\/api\/admin\/users", requestPayload)
+            .then(response => response.json())
+            .then(function(result){
+                console.log(result);
+                
+                // loop htrough all result
+                result.forEach(function(item){
+                    // create row
+                    let newRow = tbody.insertRow();
+
+                    // create new cell or column
+                    let newCell = newRow.insertCell();
+
+                    // assign first column with order id with link
+                    newCell.innerHTML = `<a href="/admin/user/${item.id}"> ${item.first_name} ${item.last_name} </a>`;
+
+                    // cretae second column
+                    newCell = newRow.insertCell();
+                    let textNode = document.createTextNode(item.email);
+                    newCell.appendChild(textNode);
+                    })
+            });
+    })
+    
+</script>
+{{end}}

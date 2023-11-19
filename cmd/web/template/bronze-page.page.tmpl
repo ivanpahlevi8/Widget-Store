@@ -1,0 +1,341 @@
+{{template "base" .}}
+
+{{define "title"}}
+    Bronze Plan Template 
+{{end}}
+
+{{define "content"}}
+    {{$widget := index .DataMap "widget"}}
+    <h2>Bronze Plan Subscription</h2>
+    <hr>
+    <h3 class="mt-4 text-center mb-2">{{$widget.Name}} : {{fmt $widget.Price}} </h3>
+    <p> {{$widget.Description}}</p>
+    <hr>
+    <div class="alert alert-danger text-center d-none" id="card-messages"></div>
+    <form action="/payment-succeded" method="post" class="form d-block needs-validation charge-form mt-5"
+            autocomplete="off" novalidate="" id="form_payment">
+
+        <input type="hidden" name="product_id" id="product_id" value="{{$widget.ID}}">
+        <input type="hidden" name="amount" id="amount" value="{{$widget.Price}}">
+
+        <div class="mb-3">
+            <label for="first_name" class="form-label">First Name</label>
+            <input type="text" class="form-control" id="first_name" name="first_name"
+                required="" autocomplete="cardholder-name-new">
+            <div id="first_name-help" class="valid-feedback">
+                Looks good!
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="last-name" class="form-label">Last Name</label>
+            <input type="text" class="form-control" id="last-name" name="last_name"
+                required="" autocomplete="cardholder-name-new">
+        </div>
+
+        <div class="mb-3">
+            <label for="cardholder-name" class="form-label">Cardholder Name</label>
+            <input type="text" class="form-control" id="cardholder-name" name="cardholder_name"
+                required="" autocomplete="cardholder-name-new">
+        </div>
+
+        <div class="mb-3">
+            <label for="cardholder-email" class="form-label">Cardholder Email</label>
+            <input type="email" class="form-control" id="cardholder-email" name="cardholder_email"
+                required="" autocomplete="cardholder-email-new">
+        </div>
+
+        <!-- card number will be built by stripe -->
+        <div class="mb-3">
+            <label for="card-element" class="form-label">Credit Card</label>
+            <div id="card-element" class="form-control"></div>
+            <div class="alert-danger text-center" id="card-errors" role="alert"></div>
+            <div class="alert-success text-center" id="card-success" role="alert"></div>
+        </div>
+
+        <hr>
+
+        <a id="pay-button" href="javascript:void(0)" class="btn btn-primary" onclick="val()">Charge Card</a>
+
+        <div id="processing-payment" class="text-center d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+        
+        <input type="hidden" name="payment_intent" id="payment_intent">
+        <input type="hidden" name="payment_method" id="payment_method">
+        <input type="hidden" name="payment_amount" id="payment_amount">
+        <input type="hidden" name="payment_currency" id="payment_currency">
+    </form>
+    <hr class="mb-5">
+{{end}}
+
+{{define "js"}}
+    <script src="https://js.stripe.com/v3/"></script>
+    {{$widget := index .DataMap "widget"}}
+    <script>
+        // create card variable
+        let card;
+
+        // create stripe variable
+        let stripe;
+
+        const cardMessages = document.getElementById("card-messages");
+
+        const payButton = document.getElementById("pay-button");
+        
+        const processing = document.getElementById("processing-payment");
+
+        // create function to hide payment button
+        function hidePaymentBtn() {
+            // set pay button classs to d non
+            payButton.classList.add("d-none");
+
+            // set d none class empty in processing
+            processing.classList.remove("d-none");
+        };
+
+        // create function to show error message
+        function showErrorMessage(msg) {
+            // show card messages
+            cardMessages.classList.remove("d-none");
+            // add alert messages
+            cardMessages.classList.add("alert-danger");
+            // remove success alert
+            cardMessages.classList.remove("alert-success");
+            // add message
+            cardMessages.innerText = msg;
+        };
+
+        // create function to show success message
+        function showSuccessMessage(msg) {
+            // show card messages
+            cardMessages.classList.remove("d-none");
+            // add alert messages
+            cardMessages.classList.remove("alert-danger");
+            // remove success alert
+            cardMessages.classList.add("alert-success");
+            // add message
+            cardMessages.innerText = msg;
+        };
+
+        // create function to show pay button
+        function showPayButton() {
+            // show button
+            payButton.classList.remove("d-none");
+            // stop showing processing
+            processing.classList.add("d-none");
+        };
+
+        // create function val that gonna be called if user click pay button
+        function val() {
+            // get form object
+            var myForm = document.getElementById("form_payment")
+
+            // check if form validate success or not
+            if(myForm.checkValidity() === false) {
+                // if there is an errro of entering input
+                /*
+                event prevent default digunakna untuk mencancel action yang akan dilakukan oleh form
+                dalam hal ini digunakan utnuk mencancle action dari form karena terdapat error validitas
+                link ->
+                https://www.w3schools.com/jsref/event_preventdefault.asp
+                */
+                this.event.preventDefault();
+                /**
+                stop propagation digunakan untuk menghentikan pemrosesan agar tidak berlanjut
+                dalam hal ini digunakna untuk mneghentiukan proses request submit dari form
+                sehingga, tidak buffering menunggu ke state selanjutnya
+                link ->
+                https://developer.mozilla.org/en-US/docs/Web/API/Event/stopPropagation
+                */
+                this.event.stopPropagation();
+                myForm.classList.add("was-validated");
+                return;
+            }
+
+            // add info that form was validated
+            myForm.classList.add("was-validated");
+
+            // hide payment button
+            hidePaymentBtn();
+
+            // get value from amount
+            let amountObj = document.getElementById("amount");
+
+            // convert amouint which is float into string by casting it
+            let amountValue = amountObj.value;
+
+            // call stripe function
+            stripe.createPaymentMethod({
+                type: 'card',
+                card: card,
+                billing_details: {
+                    email: document.getElementById("cardholder-email").value,
+                }
+            }).then(stripePayamentMethodHandler);
+        };
+
+        // cretae stripe payemtn method handle
+        function stripePayamentMethodHandler(result) {
+            // create global variable
+            var lastFourDigit = result.paymentMethod.card.last4;
+            var paymentMethodId = result.paymentMethod.id;
+            var cardBrand = result.paymentMethod.card.brand;
+            var expiredMonth = result.paymentMethod.card.exp_month;
+            var expiredYear = result.paymentMethod.card.exp_year;
+
+            // function to be called by create payment method
+            if(result.error) {
+                // if there is an error
+                showErrorMessage(result.error.message);
+            } else {
+                // create customer payment method
+                // create payload to pass to body
+                var payload = {
+                    plan: {{$widget.PlanId}},
+                    payment_method: result.paymentMethod.id,
+                    last_four: result.paymentMethod.card.last4,
+                    email: document.getElementById("cardholder-email").value,
+                    currency: "USD",
+                    card_brand: result.paymentMethod.card.brand,
+                    exp_month: result.paymentMethod.card.exp_month,
+                    exp_year: result.paymentMethod.card.exp_year,
+                    product_id: '{{$widget.ID}}',
+                    first_name: document.getElementById("first_name").value,
+                    last_name: document.getElementById("last-name").value,
+                    amount: '{{$widget.Price}}',
+                };
+
+                // create request
+                var request = {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json;charset=utf-8',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                };
+
+                //create fetch request
+                fetch("http://localhost:4001/api/add-customer-and-subscription", request)
+                    .then(resp => resp.json())
+                    .then(function(data){
+                        // processing data
+                        console.log(data);
+
+                        // check for an error
+                        if (!data.ok) {
+                            // if data is not okay
+                            payButton.classList.add("d-none");
+                            showErrorMessage("Failed Add Payment For Subscription");
+
+                            // remvove validated from class in form
+                            document.getElementById("form_payment").classList.add("was-validated");
+
+                            // show error fields
+                            // get errors from response
+                            let error = data.errors;
+
+                            console.log(error);
+
+                            // loop through all errors
+                            Object.entries(error).forEach((i) => {
+                                const [key, value] = i;
+                                // add invalid class to forms fields
+                                document.getElementById(key).classList.add("is-invalid");
+                                // remove valid class
+                                document.getElementById(key + "-help").classList.remove("valid-feedback");
+                                // add invalid class
+                                document.getElementById(key + "-help").classList.add("invalid-feedback");
+                                // add innertext message
+                                document.getElementById(key + "-help").innerText = value;
+                            });
+
+                            hidePaymentBtn();
+                        } else {
+                            // if data is okay
+                            // set submit button to none
+                            showPayButton();
+                            payButton.classList.add("d-none");
+                            showSuccessMessage("Success Add Payment For Subscription");
+
+                            // add necessary data to session
+                            /**
+                            digunakan untuk menampilkan summary data pada route receipt
+                            */
+
+                            sessionStorage.first_name = document.getElementById("first_name").value;
+                            sessionStorage.last_name = document.getElementById("last-name").value;
+                            sessionStorage.card_name = document.getElementById("cardholder-name").value;
+                            sessionStorage.email = document.getElementById("cardholder-email").value;
+                            sessionStorage.amount = "{{$widget.Price}}";
+                            sessionStorage.currency = "USD";
+                            sessionStorage.last_four = lastFourDigit;
+                            sessionStorage.exp_month = expiredMonth;
+                            sessionStorage.exp_year = expiredYear;
+                            sessionStorage.card_brand = cardBrand;
+                            sessionStorage.payment_method = paymentMethodId;
+
+                            // redirect user to receipt page
+                            location.href = "/receipt/bronze";
+                        }
+                    });
+            }
+        };
+
+         // cretae function to generate 
+        function initial() {
+            stripe = Stripe('pk_test_51NqzecHIAOtdaeBWDPt9lJOVh42ik6CYub4enGhe5PSROf76bgshIxPDQF3qNXq4W5K9vdHwVg9oW1v4XRpL6wuv00bB4NV5p6');
+
+            // create element from stripe
+            var element = stripe.elements();
+
+            // create style from stripe
+            var style = {
+                base: {
+                    fontSize: '16px',
+                    lineHeight: '24px'
+                }
+            }
+
+            // create card element
+            card = element.create(
+                'card',
+                {
+                    style: style,
+                    hidePostalCode: true
+                }
+            )
+
+            // assign card to html block
+            card.mount("#card-element")
+
+            // check for an errro by adding card listener
+            /**
+            add listener ini akan dipanggil jika terdapat perubahan dari input card input
+            seperti yang dilihat pada parameter pertama yaitu change
+            */
+            card.addEventListener('change', function(event){
+                // get error 
+                var error = event.error;
+
+                // get html block
+                var display = document.getElementById("card-errors");
+                // check if error exist or not
+                if (error) {    
+                    // if there is an error
+                    display.classList.remove('d-none');
+                    display.textContent = error.message;
+                }else{
+                    // if there is no error
+                    display.classList.add('d-none');
+                    display.textContent = '';
+                }
+            })
+        };
+
+        initial();
+    </script>
+{{end}}
